@@ -1,0 +1,13 @@
+services:
+  redis:
+    image: "redis:8.4-rc1-alpine3.22"
+    container_name: "redis"
+    ports:
+      - "6379:6379"
+  redisInsight:
+    image: "redislabs/redisinsight:latest"
+    container_name: "redis_insight"
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
