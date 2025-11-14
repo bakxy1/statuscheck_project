@@ -12,6 +12,22 @@ jobs:
         strategy:
             matrix:
                 python-version: ["3.11"]
+
+        services:
+            postgres:
+                image: postgres:15-alpine
+                ports:
+                    - 5432:5432
+                env:
+                    POSTGRES_USER: ${{secrets.POSTGRES_USER}}
+                    POSTGRES_PASSWORD: ${{secrets.POSTGRES_PASSWORD}}
+                    POSTGRES_DB: ${{secrets.POSTGRES_DB}}
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+
         steps:
             - uses: actions/checkout@v4
             - name: Set up Python ${{matrix.python-version}}
@@ -27,5 +43,13 @@ jobs:
                   flake8 . --count --select=E9,F63,F7,f82 --show-source --statistics
                   flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
             - name: Run Tests
+              env:
+                  POSTGRES_USER: ${{secrets.POSTGRES_USER}}
+                  POSTGRES_PASSWORD: ${{secrets.POSTGRES_PASSWORD}}
+                  POSTGRES_DB: ${{secrets.POSTGRES_DB}}
+                  POSTGRES_HOST: localhost
+                  POSTGRES_PORT: 5432
+                  CELERY_BROKER_URL: "redis://localhost:6379/0"
+                  CELERY_RESULT_BACKEND: "redis://localhost:6379/0"
               run: |
                   pytest
