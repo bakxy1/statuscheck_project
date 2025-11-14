@@ -1,0 +1,109 @@
+# render.yaml
+#
+# This file explicitly defines all services for Render,
+# based on your docker-compose.yml and Dockerfile.
+
+services:
+  # 1. The PostgreSQL Database
+  # This replaces your 'db' container
+  - type: pserv
+    name: db
+    plan: free # Free tier PostgreSQL
+    envVars:
+      - key: PGVERSION # Tell Render to use PostgreSQL 15
+        value: 15
+
+  # 2. The Redis Cache
+  # This replaces your 'redis' container
+  - type: redis
+    name: redis
+    plan: free # Free tier Redis
+
+  # 3. The Django Web Service
+  - type: web
+    name: web
+    plan: free
+    runtime: docker
+    dockerfilePath: ./Dockerfile # Points to your Dockerfile
+    # Connects to the env group you will create
+    envGroup: statuscheck-env 
+    # Add non-secret env vars
+    envVars:
+      # --- Connections to your other services ---
+      - key: DATABASE_URL
+        fromService:
+          type: pserv
+          name: db
+          property: connectionString # Get the full connection string
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: redis
+          property: connectionString
+      
+      # --- Production Settings ---
+      - key: COMMAND # Triggers gunicorn in your entrypoint.sh
+        value: gunicorn
+      - key: DEBUG
+        value: false
+      - key: ALLOWED_HOSTS
+        value: $RENDER_EXTERNAL_HOSTNAME # Render's public URL
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://$RENDER_EXTERNAL_HOSTNAME
+
+  # 4. The Celery Worker
+  - type: worker # Background worker
+    name: celery-worker
+    plan: free
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # This command *overrides* the Dockerfile's ENTRYPOINT
+    dockerCommand: celery -A config worker --loglevel=info
+    envGroup: statuscheck-env
+    envVars:
+      - key: DATABASE_URL
+        fromService:
+          type: pserv
+          name: db
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: redis
+          property: connectionString
+
+  # 5. The Celery Beat Scheduler
+  - type: worker
+    name: celery-beat
+    plan: free
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # This command *overrides* the Dockerfile's ENTRYPOINT
+    dockerCommand: celery -A config beat --loglevel=info
+    envGroup: statuscheck-env
+    envVars:
+      - key: DATABASE_URL
+        fromService:
+          type: pserv
+          name: db
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: redis
+          property: connectionString
