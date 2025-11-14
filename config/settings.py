@@ -151,3 +151,5 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute="*/1"),
     }
 }
+
+SWAGGER_USE_COMPAT_RENDERERS = False
