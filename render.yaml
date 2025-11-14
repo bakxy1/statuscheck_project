@@ -8,11 +8,11 @@
 databases:
   - name: db
     plan: free
-    postgresMajorVersion: 15 # This is the correct property for a 'databases' entry
+    postgresMajorVersion: '15' # This is the correct property for a 'databases' entry
 
 # 2. Define the Redis Cache (Managed Service)
 # Note: The key is 'redis_services', not 'redis'
-redis_services:
+redis:
   - name: redis
     plan: free
     ipAllowList:
