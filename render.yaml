@@ -1,20 +1,23 @@
 # render.yaml
 #
-# Corrected syntax for environment groups to satisfy linters.
+# Final version with fixes for Render's parser.
 
 services:
   # 1. The PostgreSQL Database
   - type: pserv
     name: db
     plan: free
-    envVars:
-      - key: PGVERSION
-        value: 15
+    # --- FIX 1 ---
+    # This is the correct way to set the version
+    postgresMajorVersion: 15
 
   # 2. The Redis Cache
   - type: redis
     name: redis
     plan: free
+    # --- FIX 2 ---
+    # Add an IP allow list (0.0.0.0/0 is fine for internal)
+    ipAllowList: ['0.0.0.0/0']
 
   # 3. The Django Web Service
   - type: web
@@ -23,15 +26,12 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     envVars:
-      # --- THIS IS THE CHANGE ---
-      # Link the entire secret group
-      - fromGroup: statuscheck-env 
-      # ------------------------
+      - fromGroup: statuscheck-env # Links your secrets
+      # --- FIX 3 ---
+      # Build DATABASE_URL from the variables Render auto-injects from 'db'
       - key: DATABASE_URL
-        fromService:
-          type: pserv
-          name: db
-          property: connectionString
+        value: postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DATABASE
+      # Redis *does* provide a connectionString, so this is correct
       - key: CELERY_BROKER_URL
         fromService:
           type: redis
@@ -42,10 +42,11 @@ services:
           type: redis
           name: redis
           property: connectionString
+      # --- Production settings ---
       - key: COMMAND
         value: gunicorn
       - key: DEBUG
-        value: 'false'
+        value: false
       - key: ALLOWED_HOSTS
         value: $RENDER_EXTERNAL_HOSTNAME
       - key: CSRF_TRUSTED_ORIGINS
@@ -59,14 +60,10 @@ services:
     dockerfilePath: ./Dockerfile
     dockerCommand: celery -A config worker --loglevel=info
     envVars:
-      # --- THIS IS THE CHANGE ---
       - fromGroup: statuscheck-env
-      # ------------------------
+      # --- FIX 3 ---
       - key: DATABASE_URL
-        fromService:
-          type: pserv
-          name: db
-          property: connectionString
+        value: postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DATABASE
       - key: CELERY_BROKER_URL
         fromService:
           type: redis
@@ -86,14 +83,10 @@ services:
     dockerfilePath: ./Dockerfile
     dockerCommand: celery -A config beat --loglevel=info
     envVars:
-      # --- THIS IS THE CHANGE ---
       - fromGroup: statuscheck-env
-      # ------------------------
+      # --- FIX 3 ---
       - key: DATABASE_URL
-        fromService:
-          type: pserv
-          name: db
-          property: connectionString
+        value: postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DATABASE
       - key: CELERY_BROKER_URL
         fromService:
           type: redis
