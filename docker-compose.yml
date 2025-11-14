@@ -11,3 +11,57 @@ services:
       - "5540:5540"
     depends_on:
       - redis
+  db:
+    image: "postgres:15-alpine"
+    container_name: "postgres_db"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - statuscheck_data:/var/lib/postgresql/data
+
+  web:
+    build: .
+    container_name: "statuscheck_web"
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+
+  celery_worker:
+    build: .
+    container_name: "celery_worker"
+    command: celery -A config worker --loglevel=info
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    depends_on:
+      - db
+      - redis
+
+  celery_beat:
+    build: .
+    container_name: "celery_beat"
+    command: celery -A config beat --loglevel=info
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  statuscheck_data:
