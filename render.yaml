@@ -1,27 +1,27 @@
 # render.yaml
 #
-# v3: Fixes parser errors for postgresMajorVersion and ipAllowList
+# v5: Complete restructure.
+# We will use top-level 'databases:', 'redis_services:', and 'services:'
+# keys to be unambiguous for Render's parser.
 
-services:
-  # 1. The PostgreSQL Database
-  - type: pserv
-    name: db
+# 1. Define the Database (Managed Service)
+databases:
+  - name: db
     plan: free
-    # --- FIX 1 ---
-    # Removed the 'postgresMajorVersion: 15' line.
-    # We will let Render provision the free plan's default version.
+    postgresMajorVersion: 15 # This is the correct property for a 'databases' entry
 
-  # 2. The Redis Cache
-  - type: redis
-    name: redis
+# 2. Define the Redis Cache (Managed Service)
+# Note: The key is 'redis_services', not 'redis'
+redis_services:
+  - name: redis
     plan: free
-    # --- FIX 2 ---
-    # Changed from a list of strings to a list of objects with a 'cidr' key.
     ipAllowList:
       - source: 0.0.0.0/0
         description: "Allow all internal connections"
 
-  # 3. The Django Web Service
+# 3. Define our applications (Code Services)
+services:
+  # 3a. The Django Web Service
   - type: web
     name: web
     plan: free
@@ -29,19 +29,20 @@ services:
     dockerfilePath: ./Dockerfile
     envVars:
       - fromGroup: statuscheck-env # Links your secrets
-      # This part was correct
+      # --- This is the new, correct way to link ---
       - key: DATABASE_URL
-        value: postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DATABASE
+        fromDatabase:
+          name: db
+          property: connectionString # Links to the database above
       - key: CELERY_BROKER_URL
-        fromService:
-          type: redis
+        fromRedis:
           name: redis
-          property: connectionString
+          property: connectionString # Links to the redis above
       - key: CELERY_RESULT_BACKEND
-        fromService:
-          type: redis
+        fromRedis:
           name: redis
           property: connectionString
+      # --- Production settings ---
       - key: COMMAND
         value: gunicorn
       - key: DEBUG
@@ -51,7 +52,7 @@ services:
       - key: CSRF_TRUSTED_ORIGINS
         value: https://$RENDER_EXTERNAL_HOSTNAME
 
-  # 4. The Celery Worker
+  # 3b. The Celery Worker
   - type: worker
     name: celery-worker
     plan: free
@@ -61,19 +62,19 @@ services:
     envVars:
       - fromGroup: statuscheck-env
       - key: DATABASE_URL
-        value: postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DATABASE
+        fromDatabase:
+          name: db
+          property: connectionString
       - key: CELERY_BROKER_URL
-        fromService:
-          type: redis
+        fromRedis:
           name: redis
           property: connectionString
       - key: CELERY_RESULT_BACKEND
-        fromService:
-          type: redis
+        fromRedis:
           name: redis
           property: connectionString
 
-  # 5. The Celery Beat Scheduler
+  # 3c. The Celery Beat Scheduler
   - type: worker
     name: celery-beat
     plan: free
@@ -83,14 +84,14 @@ services:
     envVars:
       - fromGroup: statuscheck-env
       - key: DATABASE_URL
-        value: postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$POSTGRES_DATABASE
+        fromDatabase:
+          name: db
+          property: connectionString
       - key: CELERY_BROKER_URL
-        fromService:
-          type: redis
+        fromRedis:
           name: redis
           property: connectionString
       - key: CELERY_RESULT_BACKEND
-        fromService:
-          type: redis
+        fromRedis:
           name: redis
           property: connectionString
