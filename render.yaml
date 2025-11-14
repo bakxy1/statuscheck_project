@@ -18,7 +18,7 @@ services:
     # --- FIX 2 ---
     # Changed from a list of strings to a list of objects with a 'cidr' key.
     ipAllowList:
-      - cidr: 0.0.0.0/0
+      - source: 0.0.0.0/0
         description: "Allow all internal connections"
 
   # 3. The Django Web Service
